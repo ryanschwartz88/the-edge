@@ -1,0 +1,13 @@
+{
+  "name": "the-edge",
+  "version": "0.1.0",
+  "description": "A daily primary-source news digest skill for Claude Code, Cursor, and other agents. Self-tuning, email-delivered, scheduled in the cloud.",
+  "keywords": ["claude-code", "skill", "news", "digest", "agent", "cursor", "opencode"],
+  "author": "Ryan Schwartz",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ryanschwartz88/the-edge.git"
+  },
+  "homepage": "https://github.com/ryanschwartz88/the-edge"
+}
