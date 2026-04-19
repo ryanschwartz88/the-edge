@@ -1,12 +1,13 @@
 # The Edge
 
-A daily primary-source news digest that runs in the cloud and emails you every morning.
+A daily primary-source news digest delivered to your inbox. Local-first, cloud-optional.
 
-Three skills:
+Four skills:
 
-- **`edge-initialize`** — one-time setup. Forks this repo under your account, personalizes it, wires up cloud triggers, sends a test digest.
-- **`the-edge`** — the daily run. Fetches primary sources, filters hype, picks 10–15 items worth your time, emails you, commits the digest.
-- **`edge-refine`** — weekly source tuning. Drops sources that stopped producing, proposes new ones based on themes surfacing in your digests, opens a PR for review.
+- **`edge-initialize`** — local first-time setup. Interview, write `~/.the-edge/`, send a test digest. No GitHub required.
+- **`the-edge`** — the daily run. Fetches primary sources, filters hype, picks 10–15 items worth your time, emails you, writes the digest to `~/.the-edge/data/digests/`.
+- **`edge-refine`** — weekly source tuning. Drops dead sources, proposes new primary sources based on themes surfacing in your digests. Reversible (comment markers, local backups).
+- **`edge-remote`** — *opt-in.* Promote local setup to a cloud-scheduled trigger so the digest arrives with your laptop closed.
 
 ## Philosophy
 
@@ -16,7 +17,7 @@ The source list decays over time. `edge-refine` prunes dead sources and proposes
 
 ## Install
 
-One command installs all three skills into your agent:
+One command installs all four skills into your agent:
 
 ```bash
 npx skills add ryanschwartz88/the-edge -a claude-code --global
@@ -24,80 +25,114 @@ npx skills add ryanschwartz88/the-edge -a claude-code --global
 
 Works with Claude Code, Cursor, OpenCode. Swap `-a` for your agent.
 
-## Setup (first time only)
+## Quickstart — local only (no GitHub needed)
 
-In any directory, start your agent and run:
+Start your agent anywhere and run:
 
 ```
 edge-initialize
 ```
 
 It will:
-1. Fork this repo to your GitHub account.
-2. Interview you for email, timezone, topics, and stack keywords.
-3. Rewrite `config/sources.md` for your lens.
-4. Create a daily remote trigger (cloud-scheduled — your laptop can be closed).
-5. Create a weekly remote trigger for `edge-refine`.
-6. Send a test digest as proof.
+1. Interview you for email, timezone, topics, stack keywords.
+2. Write `~/.the-edge/config/sources.md` personalized to your lens.
+3. Print a test digest (dry run) so you see what you'd get.
+4. Send a real test email to confirm Gmail MCP works.
+5. Optionally register a daily `launchd` trigger (macOS) so it runs every morning while your laptop is awake.
 
 Prerequisites:
-- `gh` CLI installed and authenticated (`gh auth login`).
 - Gmail MCP configured in your agent.
-- `git` configured with `user.name` and `user.email`.
+- (macOS launchd option only) a Mac.
+
+That's it. No fork, no repo, no `gh`.
 
 ## Daily use
 
-Nothing. The cloud trigger runs the skill against your forked repo every morning. The digest arrives in your inbox. A markdown copy is committed to `data/digests/YYYY-MM-DD.md`.
+Nothing. If you registered the `launchd` trigger, the digest arrives on schedule. A markdown copy lands in `~/.the-edge/data/digests/YYYY-MM-DD.md`.
 
-To preview a digest interactively without sending/committing:
+To preview without sending:
 
 ```
 the-edge --dry-run
 ```
 
 Other flags:
-- `--no-email` — commit but skip email.
-- `--no-commit` — email but skip commit.
+- `--no-email` — write the digest file but skip email.
+- `--no-commit` — email + write the file but skip any git activity (only matters in repo mode).
+- `--here` — force use of the current directory as the edge home.
 
 ## Weekly tuning
 
-`edge-refine` runs every Sunday via its trigger. It opens a pull request on your repo proposing drops (dead sources) and adds (new primary sources for themes surfacing in your recent digests). You review, merge, or close. Never auto-merges.
-
-To tune manually:
+`edge-refine` reviews the last 4 weeks of digests, drops dead sources, and proposes new primary sources for themes that are surfacing. In local mode it edits `~/.the-edge/config/sources.md` directly (always with a backup) and emails a diff summary. Run it manually whenever:
 
 ```
 edge-refine
 ```
 
+All changes use `# added YYYY-MM-DD` / `# dropped YYYY-MM-DD` comment markers and a timestamped backup in `~/.the-edge/data/` — revert with one copy.
+
+## Going cloud-scheduled (optional)
+
+If you want the digest to arrive with your laptop closed, run:
+
+```
+edge-remote
+```
+
+This creates a **private** GitHub repo from your `~/.the-edge/` contents and wires up a daily trigger (for `the-edge`) and a weekly trigger (for `edge-refine`) via the `schedule` / `RemoteTrigger` system. After it runs, close your laptop — the emails keep coming.
+
+Prerequisites: `gh` CLI authenticated (`gh auth login`), the `schedule` feature available in your agent.
+
+In repo mode `edge-refine` opens a PR instead of editing in place — same rationale, different delivery.
+
 ## Customizing your sources
 
-Edit `config/sources.md` in your fork and push. The next daily trigger picks it up automatically (it pulls fresh each run).
+Edit `~/.the-edge/config/sources.md` any time. If you're in local mode, changes take effect on the next run. If you've gone cloud (`edge-remote`), edit and `git push` (or use GitHub's web editor); the next cloud run pulls fresh.
 
 Guidelines:
 - **Primary sources only.** Researcher blogs, lab research pages, changelogs, release feeds, SEC filings. Not press, not aggregators.
 - **Specific topics.** "AI research" is too vague. "LLM agents, evals, RAG, prompt injection" is specific.
-- **Mark sources as `# pinned`** to prevent `edge-refine` from ever dropping them.
+- **`# pinned`** marks sources that `edge-refine` must never drop.
 
-## Architecture
+## How state resolution works
 
-- **Stateless skills.** All persistent state is in your repo (`config/sources.md`, `data/digests/`). Remote triggers clone fresh each run, work, push back, discard the clone.
-- **Nothing on your laptop.** Triggers run in Anthropic's cloud. Close your laptop, the digest still arrives.
-- **Your fork is the state.** Past digests committed to git serve as dedup history and the refiner's input signal.
+Every skill resolves the state directory in this order:
+
+1. `$THE_EDGE_HOME` if set (override).
+2. Current working directory if it contains `config/sources.md` (repo mode — used by cloud triggers running inside a cloned state repo).
+3. `$HOME/.the-edge/` (local default).
+
+**Mode** is detected from the presence of `.git`:
+- No `.git` → local mode. Files only, no git activity.
+- `.git` present → repo mode. Daily runs commit+push; refine uses PR flow.
 
 ## Repo layout
 
 ```
-the-edge/
+the-edge/                                  (distribution repo, this one)
 ├── config/
-│   └── sources.md             # your topics, sources, filter rules
+│   └── sources.md                         ← starter template copied by edge-initialize
 ├── data/
-│   └── digests/YYYY-MM-DD.md  # daily digests, committed as they ship
+│   └── digests/.gitkeep
 ├── skills/
 │   ├── the-edge/SKILL.md
 │   ├── edge-refine/SKILL.md
-│   └── edge-initialize/SKILL.md
+│   ├── edge-initialize/SKILL.md
+│   └── edge-remote/SKILL.md
 ├── LICENSE
+├── package.json
 └── README.md
+```
+
+After `edge-initialize`, your personal state lives in:
+
+```
+~/.the-edge/
+├── config/
+│   └── sources.md
+└── data/
+    └── digests/
+        └── YYYY-MM-DD.md
 ```
 
 ## License
